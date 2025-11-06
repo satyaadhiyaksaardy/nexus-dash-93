@@ -236,12 +236,34 @@ get_os_info() {
 
 # ==================== BUILD JSON PAYLOAD ====================
 
+escape_json_string() {
+    # Escape special characters for JSON
+    local str="$1"
+    # Escape backslashes first
+    str="${str//\\/\\\\}"
+    # Escape double quotes
+    str="${str//\"/\\\"}"
+    # Escape newlines
+    str="${str//$'\n'/\\n}"
+    # Escape tabs
+    str="${str//$'\t'/\\t}"
+    # Escape carriage returns
+    str="${str//$'\r'/\\r}"
+    echo "$str"
+}
+
 build_payload() {
     local hostname=$(hostname)
     local ip=$(hostname -I | awk '{print $1}')
     local uptime=$(cat /proc/uptime | awk '{print int($1)}')
     local timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
     local os_info=$(get_os_info)
+
+    # Escape string values for JSON
+    local server_alias_escaped=$(escape_json_string "$SERVER_ALIAS")
+    local hostname_escaped=$(escape_json_string "$hostname")
+    local os_info_escaped=$(escape_json_string "$os_info")
+    local group_escaped=$(escape_json_string "$GROUP")
 
     # Convert labels to JSON array
     local labels_json="[]"
@@ -251,8 +273,8 @@ build_payload() {
 
     cat <<EOF
 {
-  "server_alias": "$SERVER_ALIAS",
-  "hostname": "$hostname",
+  "server_alias": "$server_alias_escaped",
+  "hostname": "$hostname_escaped",
   "ip": "$ip",
   "uptime_seconds": $uptime,
   "cpu": $(get_cpu_info),
@@ -263,8 +285,8 @@ build_payload() {
   "containers": $(get_containers),
   "timestamp": "$timestamp",
   "machine_type": "$MACHINE_TYPE",
-  "group": "$GROUP",
-  "os": "$os_info",
+  "group": "$group_escaped",
+  "os": "$os_info_escaped",
   "labels": $labels_json
 }
 EOF
