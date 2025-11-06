@@ -1,6 +1,7 @@
-import { ServerStatus, Machine, Container, VM } from "@/types/server";
+import { ServerStatus, Machine, Container } from "@/types/server";
 
-const API_BASE = "/api";
+// Backend API endpoint - change this to your backend URL
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3200/api";
 
 // Mock data for fallback
 const mockServerStatus: ServerStatus[] = [
@@ -85,17 +86,6 @@ const mockMachines: Machine[] = [
     os: "Ubuntu 22.04",
     labels: ["web", "nginx"],
     status: "online"
-  },
-  {
-    id: "vm-ml-01",
-    alias: "ml-vm",
-    type: "vm",
-    group: "research",
-    parent: "gpu-01",
-    ip: "10.0.1.20",
-    os: "Ubuntu 20.04",
-    labels: ["vm", "training"],
-    status: "online"
   }
 ];
 
@@ -122,16 +112,6 @@ const mockContainers: Container[] = [
   }
 ];
 
-const mockVMs: VM[] = [
-  {
-    id: "vm-ml-01",
-    name: "ml-vm",
-    state: "running",
-    cpu_pct: 9.1,
-    mem_mb: 8192,
-    ip: "10.0.1.20"
-  }
-];
 
 export async function fetchServerStatus(): Promise<ServerStatus[]> {
   try {
@@ -168,45 +148,18 @@ export async function fetchContainers(host: string): Promise<Container[]> {
   }
 }
 
-export async function fetchVMs(host: string): Promise<VM[]> {
+// Fetch list of hosts for dropdown
+export async function fetchHosts(): Promise<{ alias: string; hostname: string; ip: string; status: string }[]> {
   try {
-    const response = await fetch(`${API_BASE}/vms/${host}/list`);
+    const response = await fetch(`${API_BASE}/hosts`);
     if (!response.ok) throw new Error("Failed to fetch");
-    return await response.json();
+    const data = await response.json();
+    return data.hosts;
   } catch (error) {
-    console.warn("Using mock data for VMs:", error);
-    return mockVMs;
-  }
-}
-
-export async function controlContainer(
-  host: string,
-  id: string,
-  action: "start" | "stop" | "restart"
-): Promise<{ ok: boolean }> {
-  try {
-    const response = await fetch(`${API_BASE}/docker/${host}/containers/${id}/${action}`, {
-      method: "POST"
-    });
-    return await response.json();
-  } catch (error) {
-    console.error("Container control failed:", error);
-    return { ok: false };
-  }
-}
-
-export async function controlVM(
-  host: string,
-  id: string,
-  action: "start" | "stop" | "restart"
-): Promise<{ ok: boolean }> {
-  try {
-    const response = await fetch(`${API_BASE}/vms/${host}/${id}/${action}`, {
-      method: "POST"
-    });
-    return await response.json();
-  } catch (error) {
-    console.error("VM control failed:", error);
-    return { ok: false };
+    console.warn("Failed to fetch hosts:", error);
+    return [
+      { alias: "gpu-01", hostname: "gpu01", ip: "10.0.0.11", status: "online" },
+      { alias: "web-01", hostname: "web01", ip: "10.0.0.12", status: "online" }
+    ];
   }
 }

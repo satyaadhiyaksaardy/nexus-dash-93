@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Container } from "@/types/server";
-import { fetchContainers } from "@/lib/api";
+import { fetchContainers, fetchHosts } from "@/lib/api";
 import {
   Table,
   TableBody,
@@ -22,15 +22,32 @@ import { RotateCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function ContainersTab() {
-  const [selectedHost, setSelectedHost] = useState("gpu-01");
+  const [hosts, setHosts] = useState<{ alias: string; hostname: string; ip: string; status: string }[]>([]);
+  const [selectedHost, setSelectedHost] = useState<string>("");
   const [containers, setContainers] = useState<Container[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Load available hosts on mount
   useEffect(() => {
-    loadContainers();
+    const loadHosts = async () => {
+      const hostList = await fetchHosts();
+      setHosts(hostList);
+      if (hostList.length > 0 && !selectedHost) {
+        setSelectedHost(hostList[0].alias);
+      }
+    };
+    loadHosts();
+  }, []);
+
+  // Load containers when host changes
+  useEffect(() => {
+    if (selectedHost) {
+      loadContainers();
+    }
   }, [selectedHost]);
 
   const loadContainers = async () => {
+    if (!selectedHost) return;
     setLoading(true);
     const data = await fetchContainers(selectedHost);
     setContainers(data);
@@ -53,12 +70,14 @@ export function ContainersTab() {
         <label className="text-sm font-medium">Host:</label>
         <Select value={selectedHost} onValueChange={setSelectedHost}>
           <SelectTrigger className="w-[200px]">
-            <SelectValue />
+            <SelectValue placeholder="Select host..." />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="gpu-01">gpu-01</SelectItem>
-            <SelectItem value="web-01">web-01</SelectItem>
-            <SelectItem value="db-01">db-01</SelectItem>
+            {hosts.map((host) => (
+              <SelectItem key={host.alias} value={host.alias}>
+                {host.alias} ({host.status})
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Button variant="outline" size="sm" onClick={loadContainers}>
