@@ -7,8 +7,6 @@ import { ClusterSummary } from "@/components/dashboard/ClusterSummary";
 import { ServerCard } from "@/components/dashboard/ServerCard";
 import { MachinesTable } from "@/components/dashboard/MachinesTable";
 import { ContainersTab } from "@/components/dashboard/ContainersTab";
-import { VMsTab } from "@/components/dashboard/VMsTab";
-import { TerminalWorkspace } from "@/components/dashboard/TerminalWorkspace";
 import { useServerStatus } from "@/hooks/useServerStatus";
 import { useMachines } from "@/hooks/useMachines";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,12 +15,6 @@ const Index = () => {
   const { data: servers, loading: serversLoading, lastUpdate, refresh } = useServerStatus();
   const { data: machines, loading: machinesLoading } = useMachines();
   const [activeTab, setActiveTab] = useState("overview");
-  const [terminalTarget, setTerminalTarget] = useState<any>(null);
-
-  const handleOpenTerminal = (targetId: string, type: "host" | "vm" | "container" = "host", host?: string) => {
-    setTerminalTarget({ type, id: targetId, host });
-    setActiveTab("terminal");
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -79,8 +71,6 @@ const Index = () => {
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="machines">Machines</TabsTrigger>
                 <TabsTrigger value="containers">Containers</TabsTrigger>
-                <TabsTrigger value="vms">VMs</TabsTrigger>
-                <TabsTrigger value="terminal">Terminal</TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="space-y-4">
@@ -89,7 +79,6 @@ const Index = () => {
                     <ServerCard
                       key={server.server_alias}
                       server={server}
-                      onOpenTerminal={(id) => handleOpenTerminal(id, "host")}
                     />
                   ))}
                 </div>
@@ -98,29 +87,11 @@ const Index = () => {
               <TabsContent value="machines">
                 <MachinesTable
                   machines={machines}
-                  onOpenTerminal={(id) => {
-                    const machine = machines.find(m => m.id === id);
-                    if (machine) {
-                      handleOpenTerminal(id, machine.type, machine.parent || undefined);
-                    }
-                  }}
                 />
               </TabsContent>
 
               <TabsContent value="containers">
-                <ContainersTab
-                  onOpenTerminal={(id, host) => handleOpenTerminal(id, "container", host)}
-                />
-              </TabsContent>
-
-              <TabsContent value="vms">
-                <VMsTab
-                  onOpenTerminal={(id, host) => handleOpenTerminal(id, "vm", host)}
-                />
-              </TabsContent>
-
-              <TabsContent value="terminal">
-                <TerminalWorkspace initialTarget={terminalTarget} />
+                <ContainersTab />
               </TabsContent>
             </Tabs>
           </>

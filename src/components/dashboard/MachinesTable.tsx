@@ -9,7 +9,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -18,14 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Terminal, Search, Server, HardDrive, Container } from "lucide-react";
+import { Search, Server, HardDrive, Container } from "lucide-react";
 
 interface MachinesTableProps {
   machines: Machine[];
-  onOpenTerminal: (machineId: string) => void;
 }
 
-export function MachinesTable({ machines, onOpenTerminal }: MachinesTableProps) {
+export function MachinesTable({ machines }: MachinesTableProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -129,13 +127,12 @@ export function MachinesTable({ machines, onOpenTerminal }: MachinesTableProps) 
               <TableHead>IP</TableHead>
               <TableHead>OS</TableHead>
               <TableHead>Labels</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredMachines.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                   No machines found matching filters
                 </TableCell>
               </TableRow>
@@ -168,17 +165,6 @@ export function MachinesTable({ machines, onOpenTerminal }: MachinesTableProps) 
                         </Badge>
                       ))}
                     </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onOpenTerminal(machine.id)}
-                      className="h-8"
-                    >
-                      <Terminal className="h-4 w-4 mr-1" />
-                      Terminal
-                    </Button>
                   </TableCell>
                 </TableRow>
               ))

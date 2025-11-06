@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Container } from "@/types/server";
-import { fetchContainers, controlContainer } from "@/lib/api";
+import { fetchContainers } from "@/lib/api";
 import {
   Table,
   TableBody,
@@ -18,15 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Play, Square, RotateCw, Terminal } from "lucide-react";
-import { toast } from "sonner";
+import { RotateCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-interface ContainersTabProps {
-  onOpenTerminal: (containerId: string, host: string) => void;
-}
-
-export function ContainersTab({ onOpenTerminal }: ContainersTabProps) {
+export function ContainersTab() {
   const [selectedHost, setSelectedHost] = useState("gpu-01");
   const [containers, setContainers] = useState<Container[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,15 +37,6 @@ export function ContainersTab({ onOpenTerminal }: ContainersTabProps) {
     setLoading(false);
   };
 
-  const handleAction = async (id: string, action: "start" | "stop" | "restart") => {
-    const result = await controlContainer(selectedHost, id, action);
-    if (result.ok) {
-      toast.success(`Container ${action} successful`);
-      loadContainers();
-    } else {
-      toast.error(`Failed to ${action} container`);
-    }
-  };
 
   const getStateVariant = (state: string) => {
     switch (state) {
@@ -92,19 +78,18 @@ export function ContainersTab({ onOpenTerminal }: ContainersTabProps) {
               <TableHead>Ports</TableHead>
               <TableHead>CPU</TableHead>
               <TableHead>Memory</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8}>
+                <TableCell colSpan={7}>
                   <Skeleton className="h-20 w-full" />
                 </TableCell>
               </TableRow>
             ) : containers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   No containers on selected host
                 </TableCell>
               </TableRow>
@@ -124,48 +109,6 @@ export function ContainersTab({ onOpenTerminal }: ContainersTabProps) {
                   <TableCell className="font-mono text-xs">{container.ports || "—"}</TableCell>
                   <TableCell className="font-mono">{container.cpu_pct.toFixed(1)}%</TableCell>
                   <TableCell className="font-mono">{container.mem_mb}MB</TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1">
-                      {container.state !== "running" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleAction(container.id, "start")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Play className="h-4 w-4 text-success" />
-                        </Button>
-                      )}
-                      {container.state === "running" && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleAction(container.id, "stop")}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Square className="h-4 w-4 text-destructive" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleAction(container.id, "restart")}
-                            className="h-8 w-8 p-0"
-                          >
-                            <RotateCw className="h-4 w-4 text-warning" />
-                          </Button>
-                        </>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onOpenTerminal(container.id, selectedHost)}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Terminal className="h-4 w-4 text-primary" />
-                      </Button>
-                    </div>
-                  </TableCell>
                 </TableRow>
               ))
             )}

@@ -9,15 +9,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ServerStatus } from "@/types/server";
-import { MoreVertical, Terminal, Container, HardDrive, Copy, Activity } from "lucide-react";
+import { MoreVertical, Copy, Activity } from "lucide-react";
 import { toast } from "sonner";
 
 interface ServerCardProps {
   server: ServerStatus;
-  onOpenTerminal: (serverId: string) => void;
 }
 
-export function ServerCard({ server, onOpenTerminal }: ServerCardProps) {
+export function ServerCard({ server }: ServerCardProps) {
   const isOnline = server.status === "ok";
   const uptimeDays = Math.floor(server.uptime_seconds / 86400);
 
@@ -48,18 +47,6 @@ export function ServerCard({ server, onOpenTerminal }: ServerCardProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onOpenTerminal(server.server_alias)}>
-                  <Terminal className="mr-2 h-4 w-4" />
-                  Open Terminal
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Container className="mr-2 h-4 w-4" />
-                  View Containers
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <HardDrive className="mr-2 h-4 w-4" />
-                  View VMs
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={copySSH}>
                   <Copy className="mr-2 h-4 w-4" />
                   Copy SSH
