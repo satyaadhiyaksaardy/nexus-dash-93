@@ -91,8 +91,8 @@ get_gpu_info() {
         return
     fi
 
-    # Get GPU basic info
-    local gpu_data=$(nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total \
+    # Get GPU basic info including temperature, fan, and power
+    local gpu_data=$(nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,fan.speed,power.draw \
         --format=csv,noheader,nounits 2>/dev/null || echo "")
 
     if [ -z "$gpu_data" ]; then
@@ -100,13 +100,59 @@ get_gpu_info() {
         return
     fi
 
-    # Process each GPU
-    echo "$gpu_data" | awk -F', ' '
-    BEGIN { printf "[" }
+    # Get GPU processes using pmon (shows GPU index, PID, type, memory)
+    # Format: gpu, pid, type, sm, mem, enc, dec, command
+    local gpu_procs=$(nvidia-smi pmon -c 1 2>/dev/null | grep -E '^\s*[0-9]' | awk '{print $1"|"$2"|"$3"|"$5"|"$8}')
+
+    # Build JSON output
+    echo "$gpu_data" | awk -F', ' -v procs="$gpu_procs" '
+    BEGIN {
+        printf "["
+
+        # Parse processes into array indexed by GPU
+        proc_count = split(procs, proc_list, "\n")
+        for (i = 1; i <= proc_count; i++) {
+            split(proc_list[i], p, "|")
+            gpu_id = p[1]
+            pid = p[2]
+            ptype = p[3]
+            mem = p[4]
+            cmd = p[5]
+
+            # Get username for this PID
+            "ps -o user= -p " pid " 2>/dev/null | xargs" | getline username
+            close("ps -o user= -p " pid " 2>/dev/null | xargs")
+            if (username == "") username = "unknown"
+
+            # Store process info
+            if (gpu_procs_json[gpu_id] == "") {
+                gpu_procs_json[gpu_id] = sprintf("{\"pid\":%s,\"username\":\"%s\",\"cmd\":\"%s\",\"used_memory_mb\":%s,\"type\":\"%s\"}",
+                    pid, username, cmd, (mem == "-" ? "0" : mem), ptype)
+            } else {
+                gpu_procs_json[gpu_id] = gpu_procs_json[gpu_id] "," sprintf("{\"pid\":%s,\"username\":\"%s\",\"cmd\":\"%s\",\"used_memory_mb\":%s,\"type\":\"%s\"}",
+                    pid, username, cmd, (mem == "-" ? "0" : mem), ptype)
+            }
+        }
+    }
     {
         if (NR > 1) printf ","
-        printf "{\"index\":%s,\"name\":\"%s\",\"utilization_pct\":%s,\"memory_used_mb\":%s,\"memory_total_mb\":%s,\"processes\":[]}",
-               $1, $2, $3, $4, $5
+
+        gpu_index = $1
+
+        # Build processes array for this GPU
+        if (gpu_procs_json[gpu_index] != "") {
+            processes = "[" gpu_procs_json[gpu_index] "]"
+        } else {
+            processes = "[]"
+        }
+
+        # Handle optional fields (N/A becomes null)
+        temp = ($6 == "[N/A]" || $6 == "N/A" || $6 == "") ? "null" : $6
+        fan = ($7 == "[N/A]" || $7 == "N/A" || $7 == "") ? "null" : $7
+        power = ($8 == "[N/A]" || $8 == "N/A" || $8 == "") ? "null" : $8
+
+        printf "{\"index\":%s,\"name\":\"%s\",\"utilization_pct\":%s,\"memory_used_mb\":%s,\"memory_total_mb\":%s,\"temperature_celsius\":%s,\"fan_speed_pct\":%s,\"power_draw_watts\":%s,\"processes\":%s}",
+               $1, $2, $3, $4, $5, temp, fan, power, processes
     }
     END { printf "]" }
     '

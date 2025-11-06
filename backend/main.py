@@ -1,9 +1,8 @@
-from fastapi import FastAPI, HTTPException, Header, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
-from datetime import datetime, timedelta
-from collections import defaultdict
+from datetime import datetime, timezone
 import os
 
 app = FastAPI(title="Server Monitoring API", version="1.0.0")
@@ -62,6 +61,7 @@ class GPUProcess(BaseModel):
     username: str
     cmd: str
     used_memory_mb: int
+    type: Optional[str] = None  # Process type (C for compute, G for graphics)
 
 class GPU(BaseModel):
     index: int
@@ -69,6 +69,9 @@ class GPU(BaseModel):
     utilization_pct: float
     memory_used_mb: int
     memory_total_mb: int
+    temperature_celsius: Optional[float] = None
+    fan_speed_pct: Optional[int] = None
+    power_draw_watts: Optional[float] = None
     processes: List[GPUProcess] = []
 
 class Container(BaseModel):
@@ -130,7 +133,7 @@ def is_server_stale(last_update: str) -> bool:
     """Check if server data is stale (older than threshold)"""
     try:
         last_update_time = datetime.fromisoformat(last_update.replace("Z", "+00:00"))
-        age = (datetime.utcnow() - last_update_time.replace(tzinfo=None)).total_seconds()
+        age = (datetime.now(timezone.utc) - last_update_time.replace(tzinfo=None)).total_seconds()
         return age > STALE_THRESHOLD_SECONDS
     except:
         return True
@@ -153,7 +156,7 @@ async def root():
         "service": "Server Monitoring API",
         "status": "online",
         "servers_monitored": len(server_data),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 @app.post("/api/report")
@@ -174,7 +177,7 @@ async def receive_report(
     # Store server data
     server_data[server_alias] = {
         **report.model_dump(),
-        "received_at": datetime.utcnow().isoformat(),
+        "received_at": datetime.now(timezone.utc).isoformat(),
         "status": "ok"
     }
 
@@ -220,7 +223,7 @@ async def get_status():
     """
     results = []
 
-    for alias, data in server_data.items():
+    for _, data in server_data.items():
         # Check if data is stale
         if is_server_stale(data["received_at"]):
             data["status"] = "down"

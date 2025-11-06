@@ -206,7 +206,7 @@ export function ServerCard({ server }: ServerCardProps) {
                     <Cpu className="h-3 w-3" />
                     <span>CPU</span>
                   </div>
-                  <p className="font-mono text-xs font-semibold">{server.cpu.percent.toFixed(1)}%</p>
+                  <p className="font-mono text-xs font-semibold">{(server.cpu?.percent ?? 0).toFixed(1)}%</p>
                 </div>
               </div>
             </div>
@@ -257,13 +257,13 @@ export function ServerCard({ server }: ServerCardProps) {
                   </div>
                   <div className="flex items-center gap-2 text-[11px] font-mono">
                     <span className="text-muted-foreground">1m</span>
-                    <span className="font-semibold">{server.cpu.loadavg["1m"].toFixed(2)}</span>
+                    <span className="font-semibold">{(server.cpu?.loadavg?.["1m"] ?? 0).toFixed(2)}</span>
                     <span className="text-muted-foreground/50">·</span>
                     <span className="text-muted-foreground">5m</span>
-                    <span className="font-semibold">{server.cpu.loadavg["5m"].toFixed(2)}</span>
+                    <span className="font-semibold">{(server.cpu?.loadavg?.["5m"] ?? 0).toFixed(2)}</span>
                     <span className="text-muted-foreground/50">·</span>
                     <span className="text-muted-foreground">15m</span>
-                    <span className="font-semibold">{server.cpu.loadavg["15m"].toFixed(2)}</span>
+                    <span className="font-semibold">{(server.cpu?.loadavg?.["15m"] ?? 0).toFixed(2)}</span>
                   </div>
                 </div>
                 <Progress value={server.cpu.percent} className="h-1.5" />
@@ -286,8 +286,8 @@ export function ServerCard({ server }: ServerCardProps) {
                     <span>Memory</span>
                   </div>
                   <span className="font-mono text-xs font-semibold">
-                    {server.memory.used_gb.toFixed(1)}GB / {server.memory.total_gb}GB
-                    <span className="text-muted-foreground ml-1.5 text-[11px]">({server.memory.percent.toFixed(1)}%)</span>
+                    {(server.memory?.used_gb ?? 0).toFixed(1)}GB / {server.memory?.total_gb ?? 0}GB
+                    <span className="text-muted-foreground ml-1.5 text-[11px]">({(server.memory?.percent ?? 0).toFixed(1)}%)</span>
                   </span>
                 </div>
                 <Progress value={server.memory.percent} className="h-1.5" />
@@ -368,7 +368,7 @@ export function ServerCard({ server }: ServerCardProps) {
                     <div className="relative grid grid-cols-3 gap-3 text-xs">
                       <div className="relative flex items-center gap-1.5 text-muted-foreground">
                         <Gauge className="h-3 w-3" />
-                        <span>Util: <span className="font-mono font-semibold text-foreground">{((gpu.memory_used_mb / gpu.memory_total_mb) * 100).toFixed(1)}%</span></span>
+                        <span>Util: <span className="font-mono font-semibold text-foreground">{(((gpu.memory_used_mb ?? 0) / (gpu.memory_total_mb ?? 1)) * 100).toFixed(1)}%</span></span>
                       </div>
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <Thermometer className="h-3 w-3" />
@@ -459,8 +459,8 @@ export function ServerCard({ server }: ServerCardProps) {
                             {disk.mountpoint}
                           </span>
                           <span className="font-mono text-xs font-semibold">
-                            {disk.free_gb}GB / {disk.total_gb}GB
-                            <span className="text-muted-foreground ml-1.5 text-[11px]">({disk.percent.toFixed(1)}%)</span>
+                            {disk.free_gb ?? 0}GB / {disk.total_gb ?? 0}GB
+                            <span className="text-muted-foreground ml-1.5 text-[11px]">({(disk.percent ?? 0).toFixed(1)}%)</span>
                           </span>
                         </div>
                         <Progress value={disk.percent} className="h-1.5" />
@@ -487,8 +487,8 @@ export function ServerCard({ server }: ServerCardProps) {
                                   {disk.mountpoint}
                                 </span>
                                 <span className="font-mono text-xs font-semibold">
-                                  {disk.free_gb}GB / {disk.total_gb}GB
-                                  <span className="text-muted-foreground ml-1.5 text-[11px]">({disk.percent.toFixed(1)}%)</span>
+                                  {disk.free_gb ?? 0}GB / {disk.total_gb ?? 0}GB
+                                  <span className="text-muted-foreground ml-1.5 text-[11px]">({(disk.percent ?? 0).toFixed(1)}%)</span>
                                 </span>
                               </div>
                               <Progress value={disk.percent} className="h-1.5" />
