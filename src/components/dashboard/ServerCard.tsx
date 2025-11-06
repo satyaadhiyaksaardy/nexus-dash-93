@@ -94,9 +94,11 @@ export function ServerCard({ server }: ServerCardProps) {
                 <div className="space-y-2">
                   {server.disks.map((disk, i) => (
                     <div key={i} className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="font-mono text-muted-foreground">{disk.mountpoint}</span>
-                        <span className="font-mono">{disk.free_gb}GB / {disk.total_gb}GB</span>
+                      <div className="flex justify-between text-xs gap-2">
+                        <span className="font-mono text-muted-foreground truncate" title={disk.mountpoint}>
+                          {disk.mountpoint}
+                        </span>
+                        <span className="font-mono flex-shrink-0">{disk.free_gb}GB / {disk.total_gb}GB</span>
                       </div>
                       <Progress value={disk.percent} className="h-1.5" />
                     </div>
