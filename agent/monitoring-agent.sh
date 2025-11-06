@@ -112,6 +112,8 @@ get_gpu_info() {
         # Parse processes into array indexed by GPU
         proc_count = split(procs, proc_list, "\n")
         for (i = 1; i <= proc_count; i++) {
+            if (proc_list[i] == "") continue
+
             split(proc_list[i], p, "|")
             gpu_id = p[1]
             pid = p[2]
@@ -119,18 +121,31 @@ get_gpu_info() {
             mem = p[4]
             cmd = p[5]
 
+            # Skip if essential fields are missing
+            if (gpu_id == "" || pid == "") continue
+
             # Get username for this PID
             "ps -o user= -p " pid " 2>/dev/null | xargs" | getline username
             close("ps -o user= -p " pid " 2>/dev/null | xargs")
             if (username == "") username = "unknown"
 
+            # Escape special characters in cmd for JSON
+            gsub(/"/, "\\\"", cmd)
+            gsub(/\\/, "\\\\", cmd)
+            gsub(/\n/, "\\n", cmd)
+            gsub(/\r/, "\\r", cmd)
+            gsub(/\t/, "\\t", cmd)
+
+            # Ensure mem is a valid integer
+            if (mem == "-" || mem == "" || mem !~ /^[0-9]+$/) mem = "0"
+
             # Store process info
             if (gpu_procs_json[gpu_id] == "") {
                 gpu_procs_json[gpu_id] = sprintf("{\"pid\":%s,\"username\":\"%s\",\"cmd\":\"%s\",\"used_memory_mb\":%s,\"type\":\"%s\"}",
-                    pid, username, cmd, (mem == "-" ? "0" : mem), ptype)
+                    pid, username, cmd, mem, ptype)
             } else {
                 gpu_procs_json[gpu_id] = gpu_procs_json[gpu_id] "," sprintf("{\"pid\":%s,\"username\":\"%s\",\"cmd\":\"%s\",\"used_memory_mb\":%s,\"type\":\"%s\"}",
-                    pid, username, cmd, (mem == "-" ? "0" : mem), ptype)
+                    pid, username, cmd, mem, ptype)
             }
         }
     }
@@ -308,7 +323,17 @@ main() {
 
     # Debug: Print payload if DEBUG=1
     if [ "${DEBUG:-0}" = "1" ]; then
-        echo "$payload" | jq '.' 2>/dev/null || echo "$payload"
+        echo "=== JSON PAYLOAD ===" >&2
+        if command -v jq >/dev/null 2>&1; then
+            echo "$payload" | jq '.' 2>&1 || {
+                log "ERROR: Invalid JSON generated. Raw payload:"
+                echo "$payload" >&2
+                exit 1
+            }
+        else
+            echo "$payload" >&2
+        fi
+        echo "===================" >&2
     fi
 
     send_report "$payload"
