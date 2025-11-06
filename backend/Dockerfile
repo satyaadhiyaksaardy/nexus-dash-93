@@ -12,8 +12,8 @@ RUN apt-get update && \
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --user -r requirements.txt
+# Install Python dependencies to a location accessible by non-root user
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # Final stage
 FROM python:3.11-slim
@@ -22,7 +22,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy Python dependencies from builder
-COPY --from=builder /root/.local /root/.local
+COPY --from=builder /install /usr/local
 
 # Copy application code
 COPY main.py .
@@ -33,9 +33,6 @@ RUN useradd -m -u 1000 appuser && \
 
 # Switch to non-root user
 USER appuser
-
-# Make sure scripts in .local are usable
-ENV PATH=/root/.local/bin:$PATH
 
 # Expose port
 EXPOSE 8000
