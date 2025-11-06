@@ -1,38 +1,16 @@
-# Multi-stage build for smaller final image
-FROM python:3.11-slim as builder
-
-# Set working directory
-WORKDIR /app
-
-# Install build dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first for better caching
-COPY requirements.txt .
-
-# Install Python dependencies to a location accessible by non-root user
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
-
-# Final stage
+# Simple single-stage build - fast and reliable
 FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Copy Python dependencies from builder
-COPY --from=builder /install /usr/local
+# Copy requirements and install dependencies
+# Using --no-cache-dir to reduce image size
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY main.py .
-
-# Create non-root user for security
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
-
-# Switch to non-root user
-USER appuser
 
 # Expose port
 EXPOSE 8000
