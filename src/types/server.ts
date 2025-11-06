@@ -21,6 +21,7 @@ export interface ServerStatus {
   users: LoggedUser[];
   gpus: GPU[];
   timestamp: string;
+  os: string;
 }
 
 export interface Disk {
@@ -44,6 +45,8 @@ export interface GPU {
   utilization_pct: number;
   memory_used_mb: number;
   memory_total_mb: number;
+  temperature_celsius?: number;
+  fan_speed_pct?: number;
   processes: GPUProcess[];
 }
 
@@ -51,6 +54,7 @@ export interface GPUProcess {
   pid: number;
   username: string;
   cmd: string;
+  type?: string;
   used_memory_mb: number;
 }
 

@@ -27,12 +27,15 @@ const mockServerStatus: ServerStatus[] = [
         utilization_pct: 72,
         memory_used_mb: 9000,
         memory_total_mb: 24576,
+        temperature_celsius: 68,
+        fan_speed_pct: 65,
         processes: [
-          { pid: 3452, username: "satya", cmd: "python train.py", used_memory_mb: 3000 }
+          { pid: 3452, username: "satya", cmd: "python train.py", type: "ML Training", used_memory_mb: 3000 }
         ]
       }
     ],
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    os: "Ubuntu 20.04"
   },
   {
     server_alias: "web-01",
@@ -47,7 +50,8 @@ const mockServerStatus: ServerStatus[] = [
     ],
     users: [],
     gpus: [],
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    os: "Ubuntu 22.04"
   },
   {
     server_alias: "db-01",
@@ -60,7 +64,8 @@ const mockServerStatus: ServerStatus[] = [
     disks: [],
     users: [],
     gpus: [],
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    os: "Ubuntu 22.04"
   }
 ];
 
@@ -86,7 +91,7 @@ const mockMachines: Machine[] = [
     os: "Ubuntu 22.04",
     labels: ["web", "nginx"],
     status: "online"
-  }
+  },
 ];
 
 const mockContainers: Container[] = [
