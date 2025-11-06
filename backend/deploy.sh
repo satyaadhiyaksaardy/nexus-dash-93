@@ -77,7 +77,8 @@ setup_env() {
 
 build_image() {
     log_info "Building Docker image..."
-    docker build -t monitoring-backend:latest .
+    # Use host network to fix DNS issues during build
+    docker build --network=host -t monitoring-backend:latest .
     log_success "Docker image built successfully"
 }
 
