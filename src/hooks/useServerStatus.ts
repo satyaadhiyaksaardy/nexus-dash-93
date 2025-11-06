@@ -24,7 +24,7 @@ export function useServerStatus(pollInterval = 5000) {
     }
   };
 
-  const sortDisksByUsage = (disks) => {
+  const sortDisksByUsage = (disks: Array<{total_gb: number; [key: string]: any}>) => {
   // Create a copy of the array using slice() to avoid mutating the original array.
   // Then, sort the copy.
   return disks.slice().sort((a, b) => {
