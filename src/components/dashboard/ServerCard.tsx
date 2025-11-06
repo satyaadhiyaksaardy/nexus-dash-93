@@ -257,13 +257,13 @@ export function ServerCard({ server }: ServerCardProps) {
                   </div>
                   <div className="flex items-center gap-2 text-[11px] font-mono">
                     <span className="text-muted-foreground">1m</span>
-                    <span className="font-semibold">{(server.cpu.loadavg["1m"] ?? 0).toFixed(2)}</span>
+                    <span className="font-semibold">{server.cpu.loadavg["1m"].toFixed(2)}</span>
                     <span className="text-muted-foreground/50">·</span>
                     <span className="text-muted-foreground">5m</span>
-                    <span className="font-semibold">{(server.cpu.loadavg["5m"] ?? 0).toFixed(2)}</span>
+                    <span className="font-semibold">{server.cpu.loadavg["5m"].toFixed(2)}</span>
                     <span className="text-muted-foreground/50">·</span>
                     <span className="text-muted-foreground">15m</span>
-                    <span className="font-semibold">{(server.cpu.loadavg["15m"] ?? 0).toFixed(2)}</span>
+                    <span className="font-semibold">{server.cpu.loadavg["15m"].toFixed(2)}</span>
                   </div>
                 </div>
                 <Progress value={server.cpu.percent} className="h-1.5" />
