@@ -216,25 +216,73 @@ sudo systemctl status monitoring-backend
 
 ### Production with Docker
 
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY main.py .
-COPY .env .
-
-EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-Build and run:
+#### Option 1: Docker Compose (Recommended)
 
 ```bash
+# Copy example env file
+cp .env.example .env
+
+# Generate and set API key
+echo "API_KEY=$(openssl rand -hex 32)" >> .env
+
+# Start with docker-compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop
+docker-compose down
+```
+
+#### Option 2: Docker Build & Run
+
+```bash
+# Build image
 docker build -t monitoring-backend .
-docker run -d -p 8000:8000 --name monitoring-backend monitoring-backend
+
+# Run container
+docker run -d \
+  --name monitoring-backend \
+  -p 8000:8000 \
+  -e API_KEY=$(openssl rand -hex 32) \
+  -e STALE_THRESHOLD_SECONDS=300 \
+  --restart unless-stopped \
+  monitoring-backend
+
+# View logs
+docker logs -f monitoring-backend
+
+# Stop and remove
+docker stop monitoring-backend && docker rm monitoring-backend
+```
+
+#### Docker Features
+
+- ✅ Multi-stage build for smaller image
+- ✅ Non-root user for security
+- ✅ Health check included
+- ✅ Automatic restart on failure
+- ✅ Log rotation configured
+
+#### Docker Management
+
+```bash
+# Check status
+docker ps | grep monitoring-backend
+
+# View logs
+docker logs monitoring-backend --tail 100 -f
+
+# Restart container
+docker restart monitoring-backend
+
+# Update and redeploy
+docker-compose pull
+docker-compose up -d
+
+# Clean up
+docker system prune -a
 ```
 
 ## Security

@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: monitoring-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - API_KEY=${API_KEY}
+      - HOST=0.0.0.0
+      - PORT=8000
+      - STALE_THRESHOLD_SECONDS=${STALE_THRESHOLD_SECONDS:-300}
+    env_file:
+      - .env
+    volumes:
+      # Mount for hot-reload in development (optional)
+      - ./main.py:/app/main.py:ro
+    networks:
+      - monitoring-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Add PostgreSQL for persistent storage
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: monitoring-db
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: monitoring
+  #     POSTGRES_USER: monitoring
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - monitoring-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U monitoring"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # Optional: Add Redis for caching
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: monitoring-cache
+  #   restart: unless-stopped
+  #   networks:
+  #     - monitoring-network
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+networks:
+  monitoring-network:
+    driver: bridge
+
+# volumes:
+#   postgres_data:
