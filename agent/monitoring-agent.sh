@@ -121,8 +121,9 @@ get_gpu_info() {
             mem = p[4]
             cmd = p[5]
 
-            # Skip if essential fields are missing
-            if (gpu_id == "" || pid == "") continue
+            # Skip if essential fields are missing or invalid (nvidia-smi returns "-" when no processes)
+            if (gpu_id == "" || pid == "" || pid == "-" || gpu_id == "-") continue
+            if (pid !~ /^[0-9]+$/) continue  # PID must be numeric
 
             # Get username for this PID
             "ps -o user= -p " pid " 2>/dev/null | xargs" | getline username
