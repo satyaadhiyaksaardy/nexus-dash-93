@@ -132,10 +132,15 @@ class Machine(BaseModel):
 def is_server_stale(last_update: str) -> bool:
     """Check if server data is stale (older than threshold)"""
     try:
+        # Parse ISO timestamp with timezone
         last_update_time = datetime.fromisoformat(last_update.replace("Z", "+00:00"))
-        age = (datetime.now(timezone.utc) - last_update_time.replace(tzinfo=None)).total_seconds()
+        # Get current time in UTC
+        now = datetime.now(timezone.utc)
+        # Calculate age in seconds (both are timezone-aware)
+        age = (now - last_update_time).total_seconds()
         return age > STALE_THRESHOLD_SECONDS
-    except:
+    except Exception as e:
+        print(f"Error parsing timestamp {last_update}: {e}")
         return True
 
 def verify_api_key(authorization: Optional[str] = None) -> bool:
