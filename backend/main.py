@@ -242,7 +242,8 @@ async def get_status():
             "disks": data["disks"],
             "users": data["users"],
             "gpus": data["gpus"],
-            "timestamp": data["timestamp"]
+            "timestamp": data["timestamp"],
+            "os": data.get("os", "Unknown")
         })
 
     return {"results": results}
