@@ -9,6 +9,13 @@
 set -euo pipefail
 
 # ==================== CONFIGURATION ====================
+
+# Load config from file if exists
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/config.env" ]; then
+    source "$SCRIPT_DIR/config.env"
+fi
+
 API_ENDPOINT="${API_ENDPOINT:-http://your-backend-server:8000/api/report}"
 API_KEY="${API_KEY:-your-super-secret-key-change-this}"
 SERVER_ALIAS="${SERVER_ALIAS:-$(hostname -s)}"
@@ -207,12 +214,15 @@ EOF
 send_report() {
     local payload="$1"
 
+    log "Sending to: $API_ENDPOINT"
+
     local response=$(curl -X POST "$API_ENDPOINT" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $API_KEY" \
         -d "$payload" \
         --max-time 10 \
         --silent \
+        --show-error \
         --write-out "\nHTTP_CODE:%{http_code}" 2>&1)
 
     local http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
@@ -222,6 +232,9 @@ send_report() {
         return 0
     else
         log "❌ Failed to send report (HTTP $http_code)"
+        if [ "${DEBUG:-0}" = "1" ]; then
+            log "Response: $response"
+        fi
         return 1
     fi
 }
