@@ -278,8 +278,13 @@ send_report() {
         return 0
     else
         log "❌ Failed to send report (HTTP $http_code)"
+        # Always show error response for non-200 codes
+        local error_response=$(echo "$response" | grep -v "HTTP_CODE:")
+        if [ -n "$error_response" ]; then
+            log "Error details: $error_response"
+        fi
         if [ "${DEBUG:-0}" = "1" ]; then
-            log "Response: $response"
+            log "Full response: $response"
         fi
         return 1
     fi
