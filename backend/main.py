@@ -1,0 +1,330 @@
+from fastapi import FastAPI, HTTPException, Header, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict
+from datetime import datetime, timedelta
+from collections import defaultdict
+import os
+
+app = FastAPI(title="Server Monitoring API", version="1.0.0")
+
+# CORS - Allow dashboard to connect
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, set to your dashboard domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Configuration
+API_KEY = os.getenv("API_KEY", "your-secret-api-key-change-in-production")
+STALE_THRESHOLD_SECONDS = int(os.getenv("STALE_THRESHOLD_SECONDS", "300"))
+
+# In-memory storage (use Redis/PostgreSQL for production)
+server_data: Dict[str, dict] = {}
+machine_registry: Dict[str, dict] = {}
+
+# ==================== DATA MODELS ====================
+
+class LoadAvg(BaseModel):
+    one_min: float = Field(alias="1m")
+    five_min: float = Field(alias="5m")
+    fifteen_min: float = Field(alias="15m")
+
+    class Config:
+        populate_by_name = True
+
+class CPU(BaseModel):
+    percent: float
+    loadavg: LoadAvg
+
+class Memory(BaseModel):
+    total_gb: float
+    used_gb: float
+    percent: float
+
+class Disk(BaseModel):
+    mountpoint: str
+    fstype: str
+    free_gb: float
+    total_gb: float
+    percent: float
+
+class LoggedUser(BaseModel):
+    name: str
+    tty: str
+    host: str
+    started: str
+
+class GPUProcess(BaseModel):
+    pid: int
+    username: str
+    cmd: str
+    used_memory_mb: int
+
+class GPU(BaseModel):
+    index: int
+    name: str
+    utilization_pct: float
+    memory_used_mb: int
+    memory_total_mb: int
+    processes: List[GPUProcess] = []
+
+class Container(BaseModel):
+    id: str
+    name: str
+    image: str
+    state: str  # running, exited, paused
+    created: str
+    ports: Optional[str] = ""
+    cpu_pct: float = 0.0
+    mem_mb: int = 0
+
+class ServerReport(BaseModel):
+    server_alias: str
+    hostname: str
+    ip: str
+    uptime_seconds: int
+    cpu: CPU
+    memory: Memory
+    disks: List[Disk]
+    users: List[LoggedUser]
+    gpus: List[GPU] = []
+    containers: List[Container] = []
+    timestamp: str
+
+    # Machine metadata (optional)
+    machine_type: str = "host"
+    group: str = "default"
+    os: str = "Unknown"
+    labels: List[str] = []
+
+class ServerStatus(BaseModel):
+    server_alias: str
+    status: str  # "ok" or "down"
+    hostname: str
+    ip: str
+    uptime_seconds: int
+    cpu: CPU
+    memory: Memory
+    disks: List[Disk]
+    users: List[LoggedUser]
+    gpus: List[GPU]
+    timestamp: str
+
+class Machine(BaseModel):
+    id: str
+    alias: str
+    type: str  # host, container
+    group: str
+    parent: Optional[str] = None
+    ip: str
+    os: str
+    labels: List[str]
+    status: str  # online, offline, degraded
+
+# ==================== HELPER FUNCTIONS ====================
+
+def is_server_stale(last_update: str) -> bool:
+    """Check if server data is stale (older than threshold)"""
+    try:
+        last_update_time = datetime.fromisoformat(last_update.replace("Z", "+00:00"))
+        age = (datetime.utcnow() - last_update_time.replace(tzinfo=None)).total_seconds()
+        return age > STALE_THRESHOLD_SECONDS
+    except:
+        return True
+
+def verify_api_key(authorization: Optional[str] = None) -> bool:
+    """Verify API key from Authorization header"""
+    if not authorization:
+        return False
+
+    # Support both "Bearer TOKEN" and just "TOKEN"
+    token = authorization.replace("Bearer ", "").strip()
+    return token == API_KEY
+
+# ==================== ENDPOINTS ====================
+
+@app.get("/")
+async def root():
+    """Health check endpoint"""
+    return {
+        "service": "Server Monitoring API",
+        "status": "online",
+        "servers_monitored": len(server_data),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@app.post("/api/report")
+async def receive_report(
+    report: ServerReport,
+    authorization: str = Header(None)
+):
+    """
+    Receive monitoring data from agent scripts.
+    Requires API key in Authorization header.
+    """
+    # Verify API key
+    if not verify_api_key(authorization):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+    server_alias = report.server_alias
+
+    # Store server data
+    server_data[server_alias] = {
+        **report.model_dump(),
+        "received_at": datetime.utcnow().isoformat(),
+        "status": "ok"
+    }
+
+    # Update machine registry
+    machine_registry[server_alias] = {
+        "id": server_alias,
+        "alias": server_alias,
+        "type": report.machine_type,
+        "group": report.group,
+        "parent": None,
+        "ip": report.ip,
+        "os": report.os,
+        "labels": report.labels,
+        "status": "online"
+    }
+
+    # Register containers as machines if present
+    for container in report.containers:
+        container_id = f"{server_alias}-{container.name}"
+        machine_registry[container_id] = {
+            "id": container_id,
+            "alias": container.name,
+            "type": "container",
+            "group": report.group,
+            "parent": server_alias,
+            "ip": report.ip,
+            "os": container.image,
+            "labels": ["container", container.state],
+            "status": "online" if container.state == "running" else "offline"
+        }
+
+    return {
+        "status": "ok",
+        "server_alias": server_alias,
+        "received_at": server_data[server_alias]["received_at"]
+    }
+
+@app.get("/api/status")
+async def get_status():
+    """
+    Get status of all monitored servers.
+    Used by dashboard for real-time monitoring.
+    """
+    results = []
+
+    for alias, data in server_data.items():
+        # Check if data is stale
+        if is_server_stale(data["received_at"]):
+            data["status"] = "down"
+        else:
+            data["status"] = "ok"
+
+        # Build response matching frontend expectations
+        results.append({
+            "server_alias": data["server_alias"],
+            "status": data["status"],
+            "hostname": data["hostname"],
+            "ip": data["ip"],
+            "uptime_seconds": data["uptime_seconds"],
+            "cpu": data["cpu"],
+            "memory": data["memory"],
+            "disks": data["disks"],
+            "users": data["users"],
+            "gpus": data["gpus"],
+            "timestamp": data["timestamp"]
+        })
+
+    return {"results": results}
+
+@app.get("/api/machines")
+async def get_machines():
+    """
+    Get inventory of all machines (hosts + containers).
+    """
+    machines = []
+
+    for machine_id, data in machine_registry.items():
+        # Update status based on latest server data
+        if data["type"] == "host" and machine_id in server_data:
+            if is_server_stale(server_data[machine_id]["received_at"]):
+                data["status"] = "offline"
+            else:
+                data["status"] = "online"
+
+        machines.append(data)
+
+    return {"machines": machines}
+
+@app.get("/api/docker/{host}/containers")
+async def get_containers(host: str):
+    """
+    Get containers running on a specific host.
+    """
+    if host not in server_data:
+        raise HTTPException(status_code=404, detail=f"Host '{host}' not found")
+
+    containers = server_data[host].get("containers", [])
+    return containers
+
+@app.get("/api/hosts")
+async def get_hosts():
+    """
+    Get list of all monitored hosts (for dropdown selectors).
+    """
+    hosts = [
+        {
+            "alias": alias,
+            "hostname": data["hostname"],
+            "ip": data["ip"],
+            "status": "online" if not is_server_stale(data["received_at"]) else "offline"
+        }
+        for alias, data in server_data.items()
+        if data.get("machine_type", "host") == "host"
+    ]
+    return {"hosts": hosts}
+
+@app.delete("/api/server/{alias}")
+async def delete_server(alias: str, authorization: str = Header(None)):
+    """
+    Remove a server from monitoring (admin only).
+    """
+    if not verify_api_key(authorization):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+    if alias not in server_data:
+        raise HTTPException(status_code=404, detail=f"Server '{alias}' not found")
+
+    # Remove server and its containers
+    del server_data[alias]
+
+    # Remove from machine registry
+    to_remove = [mid for mid, data in machine_registry.items()
+                 if mid == alias or data.get("parent") == alias]
+    for mid in to_remove:
+        del machine_registry[mid]
+
+    return {"status": "ok", "message": f"Server '{alias}' removed"}
+
+# ==================== STARTUP ====================
+
+@app.on_event("startup")
+async def startup_event():
+    print("=" * 60)
+    print("🚀 Server Monitoring API Started")
+    print("=" * 60)
+    print(f"📡 API Key: {API_KEY[:8]}...{API_KEY[-8:]}")
+    print(f"⏱️  Stale threshold: {STALE_THRESHOLD_SECONDS}s")
+    print(f"🌐 CORS: Enabled for all origins (change in production!)")
+    print("=" * 60)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
