@@ -116,4 +116,35 @@ All colors MUST be HSL.
     backdrop-filter: blur(12px);
     border: 1px solid hsl(var(--border) / 0.5);
   }
+
+  .progress-primary > div {
+    background: hsl(var(--primary));
+  }
+
+  .progress-emerald > div {
+    background: hsl(142 76% 45%);
+  }
+
+  .progress-amber > div {
+    background: hsl(38 92% 50%);
+  }
+
+  .progress-red > div {
+    background: hsl(0 84% 60%);
+  }
+
+  .chart-path {
+    stroke-dasharray: 160;
+    animation: chart-flow 6s linear infinite;
+  }
+}
+
+@keyframes chart-flow {
+  0% {
+    stroke-dashoffset: 0;
+  }
+
+  100% {
+    stroke-dashoffset: -320;
+  }
 }

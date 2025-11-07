@@ -52,8 +52,8 @@ export default function SignUp() {
       <Card className="w-full max-w-md glass-effect">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-primary/10 rounded-full">
-              <Server className="h-8 w-8 text-primary" />
+            <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center">
+              <img className="p-2" src="logo-nexus.png" alt="Mitlab Nexus" />
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
@@ -64,11 +64,11 @@ export default function SignUp() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Student Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="you@example.com"
+                placeholder="loki@mail.ntust.edu.tw"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
