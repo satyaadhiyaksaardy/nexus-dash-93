@@ -4,9 +4,7 @@ Handles authentication and API calls to Portainer
 """
 
 import httpx
-import os
 from typing import List, Dict, Optional, Any
-from datetime import datetime, timezone
 
 
 class PortainerClient:
@@ -143,27 +141,21 @@ class PortainerClient:
         Returns:
             dict: Created stack details
         """
-        # First, get the template to get its content
-        template = await self.get_custom_template(template_id)
+        # Use Portainer's custom template deployment endpoint
+        url = f"{self.base_url}/custom_templates/{template_id}/stack?endpointId={endpoint_id}"
 
-        # Get endpoint details to check if it's Swarm
-        endpoint = await self.get_endpoint(endpoint_id)
-        is_swarm = endpoint.get("Snapshots", [{}])[0].get("Swarm", False) if endpoint.get("Snapshots") else False
+        # Prepare environment variables in correct format
+        env_list = []
+        if env_vars:
+            for env_var in env_vars:
+                if isinstance(env_var, dict) and "name" in env_var and "value" in env_var:
+                    env_list.append({"name": env_var["name"], "value": env_var["value"]})
 
         # Prepare the deployment payload
         payload = {
-            "Name": name,
-            "StackFileContent": template.get("FileContent", ""),
-            "Env": env_vars or [],
+            "name": name,
+            "env": env_list,
         }
-
-        # Deploy based on whether endpoint is Swarm or standalone Docker
-        if is_swarm:
-            # Docker Swarm endpoint
-            url = f"{self.base_url}/stacks/create/swarm/string?endpointId={endpoint_id}"
-        else:
-            # Standalone Docker with Compose
-            url = f"{self.base_url}/stacks/create/standalone/string?endpointId={endpoint_id}"
 
         response = await self.client.post(url, json=payload)
         response.raise_for_status()
