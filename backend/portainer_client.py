@@ -146,18 +146,24 @@ class PortainerClient:
         # First, get the template to get its content
         template = await self.get_custom_template(template_id)
 
+        # Get endpoint details to check if it's Swarm
+        endpoint = await self.get_endpoint(endpoint_id)
+        is_swarm = endpoint.get("Snapshots", [{}])[0].get("Swarm", False) if endpoint.get("Snapshots") else False
+
         # Prepare the deployment payload
         payload = {
-            "name": name,
-            "stackFileContent": template.get("FileContent", ""),
-            "env": env_vars or [],
+            "Name": name,
+            "StackFileContent": template.get("FileContent", ""),
+            "Env": env_vars or [],
         }
 
-        # Deploy based on template type
-        if template.get("Type") == 1:  # Docker Swarm
-            url = f"{self.base_url}/stacks?type=1&method=string&endpointId={endpoint_id}"
-        else:  # Docker Compose (type 2)
-            url = f"{self.base_url}/stacks?type=2&method=string&endpointId={endpoint_id}"
+        # Deploy based on whether endpoint is Swarm or standalone Docker
+        if is_swarm:
+            # Docker Swarm endpoint
+            url = f"{self.base_url}/stacks/create/swarm/string?endpointId={endpoint_id}"
+        else:
+            # Standalone Docker with Compose
+            url = f"{self.base_url}/stacks/create/standalone/string?endpointId={endpoint_id}"
 
         response = await self.client.post(url, json=payload)
         response.raise_for_status()
