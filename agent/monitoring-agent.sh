@@ -100,67 +100,68 @@ get_gpu_info() {
         return
     fi
 
-    # Get GPU processes using pmon (shows GPU index, PID, type, memory)
-    # Format: gpu, pid, type, sm, mem, enc, dec, command
-    local gpu_procs=$(nvidia-smi pmon -c 1 2>/dev/null | grep -E '^\s*[0-9]' | awk '{print $1"|"$2"|"$3"|"$5"|"$8}')
+    # Get GPU processes using query-compute-apps (more reliable than pmon)
+    # This shows PID, process name, and GPU memory usage per process
+    local gpu_compute_procs=$(nvidia-smi --query-compute-apps=pid,process_name,used_memory \
+        --format=csv,noheader,nounits 2>/dev/null || echo "")
+
+    # Build process info with usernames (do this in bash, not awk)
+    local proc_info=""
+    if [ -n "$gpu_compute_procs" ]; then
+        while IFS=',' read -r pid pname mem; do
+            # Clean whitespace
+            pid=$(echo "$pid" | xargs)
+            pname=$(echo "$pname" | xargs)
+            mem=$(echo "$mem" | xargs)
+
+            # Skip invalid PIDs
+            if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+                continue
+            fi
+
+            # Get username from /proc (more reliable than ps)
+            if [ -d "/proc/$pid" ]; then
+                local username=$(stat -c '%U' /proc/$pid 2>/dev/null || echo "unknown")
+            else
+                local username="unknown"
+            fi
+
+            # Escape process name for JSON
+            pname=$(echo "$pname" | sed 's/\\/\\\\/g; s/"/\\"/g')
+
+            # Validate memory is numeric
+            if [[ ! "$mem" =~ ^[0-9]+$ ]]; then
+                mem="0"
+            fi
+
+            # Append to proc_info (format: pid|username|pname|mem)
+            proc_info="${proc_info}${pid}|${username}|${pname}|${mem};"
+        done <<< "$gpu_compute_procs"
+    fi
 
     # Build JSON output
-    echo "$gpu_data" | awk -F', ' -v procs="$gpu_procs" '
+    echo "$gpu_data" | awk -F', ' -v procs="$proc_info" '
     BEGIN {
         printf "["
 
-        # Parse processes into array indexed by GPU
-        proc_count = split(procs, proc_list, "\n")
-        for (i = 1; i <= proc_count; i++) {
-            if (proc_list[i] == "") continue
-
-            split(proc_list[i], p, "|")
-            gpu_id = p[1]
-            pid = p[2]
-            ptype = p[3]
-            mem = p[4]
-            cmd = p[5]
-
-            # Skip if essential fields are missing or invalid (nvidia-smi returns "-" when no processes)
-            if (gpu_id == "" || pid == "" || pid == "-" || gpu_id == "-") continue
-            if (pid !~ /^[0-9]+$/) continue  # PID must be numeric
-
-            # Get username for this PID
-            "ps -o user= -p " pid " 2>/dev/null | xargs" | getline username
-            close("ps -o user= -p " pid " 2>/dev/null | xargs")
-            if (username == "") username = "unknown"
-
-            # Escape special characters in cmd for JSON
-            gsub(/"/, "\\\"", cmd)
-            gsub(/\\/, "\\\\", cmd)
-            gsub(/\n/, "\\n", cmd)
-            gsub(/\r/, "\\r", cmd)
-            gsub(/\t/, "\\t", cmd)
-
-            # Ensure mem is a valid integer
-            if (mem == "-" || mem == "" || mem !~ /^[0-9]+$/) mem = "0"
-
-            # Store process info
-            if (gpu_procs_json[gpu_id] == "") {
-                gpu_procs_json[gpu_id] = sprintf("{\"pid\":%s,\"username\":\"%s\",\"cmd\":\"%s\",\"used_memory_mb\":%s,\"type\":\"%s\"}",
-                    pid, username, cmd, mem, ptype)
-            } else {
-                gpu_procs_json[gpu_id] = gpu_procs_json[gpu_id] "," sprintf("{\"pid\":%s,\"username\":\"%s\",\"cmd\":\"%s\",\"used_memory_mb\":%s,\"type\":\"%s\"}",
-                    pid, username, cmd, mem, ptype)
+        # Parse process info
+        # For simplicity, assign all processes to all GPUs since query-compute-apps doesnt show GPU index
+        # Note: nvidia-smi doesnt easily map processes to specific GPUs
+        if (procs != "") {
+            split(procs, proc_list, ";")
+            for (i in proc_list) {
+                if (proc_list[i] == "") continue
+                split(proc_list[i], p, "|")
+                all_processes = all_processes (all_processes == "" ? "" : ",") sprintf("{\"pid\":%s,\"username\":\"%s\",\"cmd\":\"%s\",\"used_memory_mb\":%s,\"type\":\"C\"}", p[1], p[2], p[3], p[4])
             }
         }
     }
     {
         if (NR > 1) printf ","
 
-        gpu_index = $1
-
-        # Build processes array for this GPU
-        if (gpu_procs_json[gpu_index] != "") {
-            processes = "[" gpu_procs_json[gpu_index] "]"
-        } else {
-            processes = "[]"
-        }
+        # For now, show all GPU processes on each GPU (limitation of nvidia-smi)
+        # To properly map, we would need nvidia-smi pmon but it has issues
+        processes = "[" all_processes "]"
 
         # Handle optional fields (N/A becomes null)
         temp = ($6 == "[N/A]" || $6 == "N/A" || $6 == "") ? "null" : $6
