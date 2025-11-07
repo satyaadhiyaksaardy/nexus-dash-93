@@ -40,13 +40,13 @@ export default function Login() {
       <Card className="w-full max-w-md glass-effect">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-primary/10 rounded-full">
-              <Server className="h-8 w-8 text-primary" />
+            <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center">
+              <img className="p-2" src="logo-nexus.png" alt="Mitlab Nexus" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Nexus Dashboard</CardTitle>
+          <CardTitle className="text-2xl font-bold">Mitlab Nexus</CardTitle>
           <CardDescription>
-            Enter your credentials to access the server monitoring dashboard
+            Sign in to your account to continue
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
