@@ -89,3 +89,55 @@ export interface VM {
   mem_mb: number;
   ip: string;
 }
+
+// Portainer types
+export interface PortainerEndpoint {
+  Id: number;
+  Name: string;
+  Type: number;
+  URL: string;
+  GroupId: number;
+  PublicURL: string;
+  Status: number;
+  Snapshots: any[];
+  TagIds: number[];
+}
+
+export interface PortainerTemplate {
+  Id: number;
+  Title: string;
+  Description: string;
+  Type: number; // 1 = Swarm, 2 = Compose
+  Platform: string;
+  Logo: string;
+  Variables: PortainerTemplateVariable[];
+  FileContent?: string;
+}
+
+export interface PortainerTemplateVariable {
+  name: string;
+  label: string;
+  description?: string;
+  default?: string;
+  preset?: boolean;
+}
+
+export interface PortainerStack {
+  Id: number;
+  Name: string;
+  Type: number;
+  EndpointId: number;
+  SwarmId: string;
+  EntryPoint: string;
+  Env: Array<{ name: string; value: string }>;
+  Status: number;
+  CreationDate: number;
+  CreatedBy: string;
+}
+
+export interface DeployStackRequest {
+  name: string;
+  template_id: number;
+  endpoint_id: number;
+  env_vars?: Array<{ name: string; value: string }>;
+}

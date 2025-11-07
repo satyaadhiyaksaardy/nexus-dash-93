@@ -1,4 +1,4 @@
-import { ServerStatus, Machine, Container } from "@/types/server";
+import { ServerStatus, Machine, Container, PortainerEndpoint, PortainerTemplate, PortainerStack, DeployStackRequest } from "@/types/server";
 
 // Backend API endpoint - change this to your backend URL
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3200/api";
@@ -166,5 +166,72 @@ export async function fetchHosts(): Promise<{ alias: string; hostname: string; i
       { alias: "gpu-01", hostname: "gpu01", ip: "10.0.0.11", status: "online" },
       { alias: "web-01", hostname: "web01", ip: "10.0.0.12", status: "online" }
     ];
+  }
+}
+
+// ==================== PORTAINER API ====================
+
+export async function fetchPortainerStatus(): Promise<{ status: string; url: string }> {
+  const response = await fetch(`${API_BASE}/portainer/status`);
+  if (!response.ok) throw new Error("Portainer not configured");
+  return await response.json();
+}
+
+export async function fetchPortainerEndpoints(): Promise<PortainerEndpoint[]> {
+  const response = await fetch(`${API_BASE}/portainer/endpoints`);
+  if (!response.ok) throw new Error("Failed to fetch endpoints");
+  const data = await response.json();
+  return data.endpoints;
+}
+
+export async function fetchPortainerTemplates(): Promise<PortainerTemplate[]> {
+  const response = await fetch(`${API_BASE}/portainer/templates`);
+  if (!response.ok) throw new Error("Failed to fetch templates");
+  const data = await response.json();
+  return data.templates;
+}
+
+export async function fetchPortainerTemplate(templateId: number): Promise<PortainerTemplate> {
+  const response = await fetch(`${API_BASE}/portainer/templates/${templateId}`);
+  if (!response.ok) throw new Error("Failed to fetch template");
+  return await response.json();
+}
+
+export async function fetchPortainerStacks(): Promise<PortainerStack[]> {
+  const response = await fetch(`${API_BASE}/portainer/stacks`);
+  if (!response.ok) throw new Error("Failed to fetch stacks");
+  const data = await response.json();
+  return data.stacks;
+}
+
+export async function deployStack(request: DeployStackRequest, apiKey: string): Promise<any> {
+  const response = await fetch(`${API_BASE}/portainer/deploy`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(request)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Deployment failed");
+  }
+
+  return await response.json();
+}
+
+export async function deleteStack(stackId: number, endpointId: number, apiKey: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/portainer/stacks/${stackId}?endpoint_id=${endpointId}`, {
+    method: "DELETE",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Failed to delete stack");
   }
 }

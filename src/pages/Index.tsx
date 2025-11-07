@@ -7,6 +7,7 @@ import { ClusterSummary } from "@/components/dashboard/ClusterSummary";
 import { ServerCard } from "@/components/dashboard/ServerCard";
 import { MachinesTable } from "@/components/dashboard/MachinesTable";
 import { ContainersTab } from "@/components/dashboard/ContainersTab";
+import { DeployTab } from "@/components/dashboard/DeployTab";
 import { useServerStatus } from "@/hooks/useServerStatus";
 import { useMachines } from "@/hooks/useMachines";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -463,6 +464,7 @@ const Index = () => {
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="machines">Machines</TabsTrigger>
                 <TabsTrigger value="containers">Containers</TabsTrigger>
+                <TabsTrigger value="deploy">Deploy</TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="space-y-4">
@@ -498,6 +500,10 @@ const Index = () => {
 
               <TabsContent value="containers">
                 <ContainersTab />
+              </TabsContent>
+
+              <TabsContent value="deploy">
+                <DeployTab />
               </TabsContent>
             </Tabs>
           </>

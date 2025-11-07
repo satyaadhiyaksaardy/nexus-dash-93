@@ -1,9 +1,11 @@
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 import os
+
+from portainer_client import init_portainer_client, get_portainer_client
 
 app = FastAPI(title="Server Monitoring API", version="1.0.0")
 
@@ -19,6 +21,10 @@ app.add_middleware(
 # Configuration
 API_KEY = os.getenv("API_KEY", "your-secret-api-key-change-in-production")
 STALE_THRESHOLD_SECONDS = int(os.getenv("STALE_THRESHOLD_SECONDS", "300"))
+
+# Portainer Configuration
+PORTAINER_URL = os.getenv("PORTAINER_URL", "")
+PORTAINER_API_KEY = os.getenv("PORTAINER_API_KEY", "")
 
 # In-memory storage (use Redis/PostgreSQL for production)
 server_data: Dict[str, dict] = {}
@@ -322,6 +328,120 @@ async def delete_server(alias: str, authorization: str = Header(None)):
 
     return {"status": "ok", "message": f"Server '{alias}' removed"}
 
+# ==================== PORTAINER ENDPOINTS ====================
+
+@app.get("/api/portainer/status")
+async def portainer_status():
+    """Check Portainer connection status"""
+    client = get_portainer_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Portainer not configured")
+
+    try:
+        is_healthy = await client.health_check()
+        return {"status": "connected" if is_healthy else "disconnected", "url": PORTAINER_URL}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Portainer connection failed: {str(e)}")
+
+@app.get("/api/portainer/endpoints")
+async def get_portainer_endpoints():
+    """Get all Portainer endpoints (environments)"""
+    client = get_portainer_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Portainer not configured")
+
+    try:
+        endpoints = await client.get_endpoints()
+        return {"endpoints": endpoints}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch endpoints: {str(e)}")
+
+@app.get("/api/portainer/templates")
+async def get_portainer_templates():
+    """Get all custom templates from Portainer"""
+    client = get_portainer_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Portainer not configured")
+
+    try:
+        templates = await client.get_custom_templates()
+        return {"templates": templates}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch templates: {str(e)}")
+
+@app.get("/api/portainer/templates/{template_id}")
+async def get_portainer_template(template_id: int):
+    """Get specific template details including variables"""
+    client = get_portainer_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Portainer not configured")
+
+    try:
+        template = await client.get_custom_template(template_id)
+        return template
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch template: {str(e)}")
+
+@app.get("/api/portainer/stacks")
+async def get_portainer_stacks():
+    """Get all deployed stacks"""
+    client = get_portainer_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Portainer not configured")
+
+    try:
+        stacks = await client.get_stacks()
+        return {"stacks": stacks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch stacks: {str(e)}")
+
+class DeployStackRequest(BaseModel):
+    name: str
+    template_id: int
+    endpoint_id: int
+    env_vars: Optional[List[Dict[str, str]]] = None
+
+@app.post("/api/portainer/deploy")
+async def deploy_stack(request: DeployStackRequest, authorization: str = Header(None)):
+    """Deploy a stack from template to endpoint"""
+    if not verify_api_key(authorization):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+    client = get_portainer_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Portainer not configured")
+
+    try:
+        result = await client.deploy_stack_from_template(
+            name=request.name,
+            template_id=request.template_id,
+            endpoint_id=request.endpoint_id,
+            env_vars=request.env_vars
+        )
+        return {"status": "success", "stack": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Deployment failed: {str(e)}")
+
+@app.delete("/api/portainer/stacks/{stack_id}")
+async def delete_portainer_stack(
+    stack_id: int,
+    endpoint_id: int,
+    authorization: str = Header(None)
+):
+    """Delete a deployed stack"""
+    if not verify_api_key(authorization):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+    client = get_portainer_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Portainer not configured")
+
+    try:
+        await client.delete_stack(stack_id, endpoint_id)
+        return {"status": "success", "message": f"Stack {stack_id} deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete stack: {str(e)}")
+
 # ==================== STARTUP ====================
 
 @app.on_event("startup")
@@ -332,6 +452,22 @@ async def startup_event():
     print(f"📡 API Key: {API_KEY[:8]}...{API_KEY[-8:]}")
     print(f"⏱️  Stale threshold: {STALE_THRESHOLD_SECONDS}s")
     print(f"🌐 CORS: Enabled for all origins (change in production!)")
+
+    # Initialize Portainer client if configured
+    if PORTAINER_URL and PORTAINER_API_KEY:
+        init_portainer_client(PORTAINER_URL, PORTAINER_API_KEY)
+        client = get_portainer_client()
+        if client:
+            is_healthy = await client.health_check()
+            if is_healthy:
+                print(f"🐳 Portainer: Connected to {PORTAINER_URL}")
+            else:
+                print(f"⚠️  Portainer: Configured but unreachable at {PORTAINER_URL}")
+        else:
+            print("⚠️  Portainer: Failed to initialize client")
+    else:
+        print("ℹ️  Portainer: Not configured (optional)")
+
     print("=" * 60)
 
 if __name__ == "__main__":
