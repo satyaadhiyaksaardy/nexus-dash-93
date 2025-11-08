@@ -420,6 +420,9 @@ async def deploy_stack(request: DeployStackRequest, authorization: str = Header(
         )
         return {"status": "success", "stack": result}
     except Exception as e:
+        import traceback
+        print(f"Deployment error: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Deployment failed: {str(e)}")
 
 @app.delete("/api/portainer/stacks/{stack_id}")

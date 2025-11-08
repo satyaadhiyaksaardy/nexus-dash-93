@@ -337,13 +337,40 @@ export function DeployTab() {
                           </span>
                         )}
                       </Label>
-                      <Input
-                        id={`var-${variable.name}`}
-                        placeholder={variable.default || ""}
-                        value={envVars[variable.name] || ""}
-                        onChange={(e) => setEnvVars({ ...envVars, [variable.name]: e.target.value })}
-                        disabled={variable.preset}
-                      />
+
+                      {/* Check if variable has select options */}
+                      {variable.select && variable.select.length > 0 ? (
+                        <Select
+                          value={envVars[variable.name] || ""}
+                          onValueChange={(value) => setEnvVars({ ...envVars, [variable.name]: value })}
+                        >
+                          <SelectTrigger id={`var-${variable.name}`}>
+                            <SelectValue placeholder={`Select ${variable.label}`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {variable.select.map((option: any) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                <div className="flex flex-col">
+                                  <span>{option.text}</span>
+                                  {option.description && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {option.description}
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id={`var-${variable.name}`}
+                          placeholder={variable.default || ""}
+                          value={envVars[variable.name] || ""}
+                          onChange={(e) => setEnvVars({ ...envVars, [variable.name]: e.target.value })}
+                          disabled={variable.preset}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>

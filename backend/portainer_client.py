@@ -23,9 +23,10 @@ class PortainerClient:
         self.base_url = f"{self.url}/api"
 
         # Create httpx client with SSL verification disabled for self-signed certs
+        # Timeout set to 10 minutes for large image pulls during deployment
         self.client = httpx.AsyncClient(
             verify=False,
-            timeout=30.0,
+            timeout=600.0,  # 10 minutes for image pulls
             headers={
                 "X-API-Key": self.api_key,
                 "Content-Type": "application/json"
@@ -86,6 +87,7 @@ class PortainerClient:
     async def get_custom_template(self, template_id: int) -> Dict[str, Any]:
         """
         Get specific custom template details
+        Enriches template with variables from App Template format if present
 
         Args:
             template_id: ID of the template
@@ -93,24 +95,77 @@ class PortainerClient:
         Returns:
             dict: Template details including variables
         """
+        import json
+
         response = await self.client.get(f"{self.base_url}/custom_templates/{template_id}")
         response.raise_for_status()
-        return response.json()
+        template = response.json()
+
+        # Try to parse file content for App Template format variables
+        try:
+            file_response = await self.client.get(f"{self.base_url}/custom_templates/{template_id}/file")
+            file_response.raise_for_status()
+            file_data = file_response.json()
+            file_content = file_data.get("FileContent", "")
+
+            # Parse as App Template JSON
+            parsed = json.loads(file_content)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                app_template = parsed[0]
+                if "env" in app_template and isinstance(app_template["env"], list):
+                    # Convert App Template env format to Portainer Variables format
+                    variables = []
+                    for env_var in app_template["env"]:
+                        var = {
+                            "name": env_var.get("name", ""),
+                            "label": env_var.get("label", env_var.get("name", "")),
+                            "description": env_var.get("description", ""),
+                            "default": env_var.get("default", "")
+                        }
+                        # Add select options if present
+                        if "select" in env_var:
+                            var["select"] = env_var["select"]
+                        variables.append(var)
+
+                    # Replace empty Variables array with parsed variables
+                    template["Variables"] = variables
+        except Exception:
+            # If parsing fails, keep original template unchanged
+            pass
+
+        return template
 
     async def get_custom_template_file(self, template_id: int) -> str:
         """
         Get custom template file content
+        Handles both plain docker-compose.yml and App Template JSON format
 
         Args:
             template_id: ID of the template
 
         Returns:
-            str: File content of the template
+            str: File content of the template (docker-compose.yml)
         """
+        import json
+
         response = await self.client.get(f"{self.base_url}/custom_templates/{template_id}/file")
         response.raise_for_status()
         data = response.json()
-        return data.get("FileContent", "")
+        file_content = data.get("FileContent", "")
+
+        # Try to parse as App Template JSON format
+        try:
+            parsed = json.loads(file_content)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                # App Template format: extract stackfile from repository
+                template_data = parsed[0]
+                if "repository" in template_data and "stackfile" in template_data["repository"]:
+                    return template_data["repository"]["stackfile"]
+        except (json.JSONDecodeError, KeyError, IndexError):
+            # Not App Template format, return as-is (plain docker-compose.yml)
+            pass
+
+        return file_content
 
     async def get_stacks(self) -> List[Dict[str, Any]]:
         """
@@ -163,12 +218,15 @@ class PortainerClient:
         endpoint = await self.get_endpoint(endpoint_id)
         is_swarm = endpoint.get("Snapshots", [{}])[0].get("Swarm", False) if endpoint.get("Snapshots") else False
 
-        # Prepare environment variables in correct format
+        # Prepare environment variables in correct format and perform variable substitution
         env_list = []
         if env_vars:
             for env_var in env_vars:
                 if isinstance(env_var, dict) and "name" in env_var and "value" in env_var:
                     env_list.append({"name": env_var["name"], "value": env_var["value"]})
+                    # Replace {{VARIABLE_NAME}} placeholders in file content
+                    placeholder = "{{" + env_var["name"] + "}}"
+                    file_content = file_content.replace(placeholder, env_var["value"])
 
         # Prepare the deployment payload
         payload = {
