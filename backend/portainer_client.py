@@ -97,6 +97,21 @@ class PortainerClient:
         response.raise_for_status()
         return response.json()
 
+    async def get_custom_template_file(self, template_id: int) -> str:
+        """
+        Get custom template file content
+
+        Args:
+            template_id: ID of the template
+
+        Returns:
+            str: File content of the template
+        """
+        response = await self.client.get(f"{self.base_url}/custom_templates/{template_id}/file")
+        response.raise_for_status()
+        data = response.json()
+        return data.get("FileContent", "")
+
     async def get_stacks(self) -> List[Dict[str, Any]]:
         """
         Get all stacks across all endpoints
@@ -141,8 +156,12 @@ class PortainerClient:
         Returns:
             dict: Created stack details
         """
-        # Use Portainer's custom template deployment endpoint
-        url = f"{self.base_url}/custom_templates/{template_id}/stack?endpointId={endpoint_id}"
+        # Get the template file content
+        file_content = await self.get_custom_template_file(template_id)
+
+        # Get endpoint details to check if it's Swarm
+        endpoint = await self.get_endpoint(endpoint_id)
+        is_swarm = endpoint.get("Snapshots", [{}])[0].get("Swarm", False) if endpoint.get("Snapshots") else False
 
         # Prepare environment variables in correct format
         env_list = []
@@ -154,8 +173,15 @@ class PortainerClient:
         # Prepare the deployment payload
         payload = {
             "name": name,
+            "stackFileContent": file_content,
             "env": env_list,
         }
+
+        # Deploy based on whether endpoint is Swarm or standalone Docker
+        if is_swarm:
+            url = f"{self.base_url}/stacks/create/swarm/string?endpointId={endpoint_id}"
+        else:
+            url = f"{self.base_url}/stacks/create/standalone/string?endpointId={endpoint_id}"
 
         response = await self.client.post(url, json=payload)
         response.raise_for_status()
