@@ -220,6 +220,8 @@ class PortainerClient:
 
         # Prepare environment variables in correct format and perform variable substitution
         env_list = []
+        host_path = None
+
         if env_vars:
             for env_var in env_vars:
                 if isinstance(env_var, dict) and "name" in env_var and "value" in env_var:
@@ -227,6 +229,14 @@ class PortainerClient:
                     # Replace {{VARIABLE_NAME}} placeholders in file content
                     placeholder = "{{" + env_var["name"] + "}}"
                     file_content = file_content.replace(placeholder, env_var["value"])
+
+                    # Capture HOST_PATH for directory pre-creation
+                    if env_var["name"] == "HOST_PATH":
+                        host_path = env_var["value"]
+
+        # Pre-create HOST_PATH directory with correct ownership if specified
+        if host_path:
+            await self._ensure_host_directory(endpoint_id, host_path)
 
         # Prepare the deployment payload
         payload = {
@@ -244,6 +254,76 @@ class PortainerClient:
         response = await self.client.post(url, json=payload)
         response.raise_for_status()
         return response.json()
+
+    async def _ensure_host_directory(self, endpoint_id: int, host_path: str) -> None:
+        """
+        Pre-create host directory with correct ownership using Docker exec
+
+        Args:
+            endpoint_id: ID of the endpoint
+            host_path: Path on the host to create
+        """
+        import os
+
+        # Extract username from path (e.g., /home/satya/project -> satya)
+        path_parts = host_path.split('/')
+        username = None
+
+        # Look for /home/username pattern
+        if len(path_parts) >= 3 and path_parts[1] == 'home':
+            username = path_parts[2]
+
+        if not username:
+            # Default to creating as root if we can't determine user
+            return
+
+        try:
+            # Use a temporary busybox container to create the directory with correct ownership
+            # This is a workaround since Portainer doesn't have a direct file API
+            exec_payload = {
+                "AttachStdin": False,
+                "AttachStdout": True,
+                "AttachStderr": True,
+                "Tty": False,
+                "Cmd": [
+                    "sh", "-c",
+                    f"mkdir -p {host_path} && chown -R {username}:{username} {host_path}"
+                ]
+            }
+
+            # Create temporary container with host filesystem mounted
+            container_payload = {
+                "name": f"temp-mkdir-{endpoint_id}",
+                "Image": "busybox:latest",
+                "HostConfig": {
+                    "Binds": ["/:/host"],
+                    "AutoRemove": True
+                },
+                "Cmd": ["sh", "-c", f"mkdir -p /host{host_path} && chown -R $(stat -c '%u:%g' /host/home/{username}) /host{host_path}"]
+            }
+
+            # Create and start container via Docker API through Portainer
+            create_url = f"{self.base_url}/endpoints/{endpoint_id}/docker/containers/create"
+            response = await self.client.post(create_url, json=container_payload)
+
+            if response.status_code == 201:
+                container_data = response.json()
+                container_id = container_data["Id"]
+
+                # Start the container
+                start_url = f"{self.base_url}/endpoints/{endpoint_id}/docker/containers/{container_id}/start"
+                await self.client.post(start_url)
+
+                # Container will auto-remove after completion
+                # Wait a moment for it to complete
+                import asyncio
+                await asyncio.sleep(1)
+
+        except Exception as e:
+            # If directory creation fails, log but don't stop deployment
+            # Docker will create it as root, which may be acceptable
+            print(f"Warning: Could not pre-create directory {host_path}: {e}")
+            pass
 
     async def delete_stack(self, stack_id: int, endpoint_id: int) -> bool:
         """

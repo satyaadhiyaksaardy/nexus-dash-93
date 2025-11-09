@@ -54,7 +54,8 @@ import {
   XCircle,
   Clock,
   Server,
-  Container
+  Container,
+  Copy
 } from "lucide-react";
 
 export function DeployTab() {
@@ -78,6 +79,7 @@ export function DeployTab() {
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [stackToDelete, setStackToDelete] = useState<{ id: number; endpointId: number; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Load templates, endpoints, and stacks on mount
   useEffect(() => {
@@ -174,19 +176,28 @@ export function DeployTab() {
   const handleDeleteStack = async () => {
     if (!stackToDelete || !apiKey) return;
 
+    setDeleting(true);
     try {
       await deleteStack(stackToDelete.id, stackToDelete.endpointId, apiKey);
-      toast.success(`Stack "${stackToDelete.name}" deleted successfully`);
+      toast.success(`Stack "${stackToDelete.name}" deleted successfully!`, {
+        duration: 4000,
+      });
 
       // Reload stacks
       const stacksData = await fetchPortainerStacks();
       setStacks(stacksData);
-    } catch (error: any) {
-      console.error("Failed to delete stack:", error);
-      toast.error(error.message || "Failed to delete stack");
-    } finally {
+
+      // Close dialog after successful deletion
       setDeleteDialogOpen(false);
       setStackToDelete(null);
+    } catch (error: any) {
+      console.error("Failed to delete stack:", error);
+      toast.error(error.message || "Failed to delete stack", {
+        duration: 5000,
+      });
+      // Keep dialog open on error so user can try again
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -197,6 +208,26 @@ export function DeployTab() {
       name: stack.Name
     });
     setDeleteDialogOpen(true);
+  };
+
+  const copyExecCommand = (stack: PortainerStack) => {
+    // Get container name from env vars or use stack name
+    let containerName = stack.Name;
+
+    // Check if CONTAINER_NAME env var exists
+    const containerNameEnv = stack.Env?.find(e => e.name === "CONTAINER_NAME");
+    if (containerNameEnv) {
+      containerName = containerNameEnv.value;
+    }
+
+    const execCommand = `docker container exec -it ${containerName} /bin/bash`;
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(execCommand).then(() => {
+      toast.success("Exec command copied to clipboard!");
+    }).catch(() => {
+      toast.error("Failed to copy command");
+    });
   };
 
   if (loading) {
@@ -481,14 +512,25 @@ export function DeployTab() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openDeleteDialog(stack)}
-                            disabled={!apiKey}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyExecCommand(stack)}
+                              title="Copy docker exec command"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openDeleteDialog(stack)}
+                              disabled={!apiKey}
+                              title="Delete stack"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -510,9 +552,20 @@ export function DeployTab() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteStack} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteStack}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
