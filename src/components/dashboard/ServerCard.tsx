@@ -545,7 +545,7 @@ export function ServerCard({ server }: ServerCardProps) {
                       <div className="relative grid grid-cols-3 gap-3 text-xs">
                         <div className="relative flex items-center gap-1.5 text-muted-foreground">
                           <Gauge className="h-3 w-3" />
-                          <span>Util: <span className="font-mono font-semibold text-foreground">{gpuMemoryPercent.toFixed(1)}%</span></span>
+                          <span>Memory Util: <span className="font-mono font-semibold text-foreground">{gpuMemoryPercent.toFixed(1)}%</span></span>
                         </div>
                         <div className="flex items-center gap-1.5 text-muted-foreground">
                           <Thermometer className="h-3 w-3" />
